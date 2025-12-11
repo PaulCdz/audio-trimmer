@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Audio Trimmer YouTube</title>
+</head>
+<body>
+
+  <h2>Extraire l'audio YouTube</h2>
+
+  <input id="url" placeholder="Colle l'URL YouTube ici" size="50">
+  <button onclick="downloadAudio()">Analyser</button>
+
+  <h3>Audio téléchargé :</h3>
+  <audio id="player" controls></audio>
+
+  <h3>Trim</h3>
+  Début (sec) : <input id="start" type="number"><br><br>
+  Fin (sec) : <input id="end" type="number"><br><br>
+  <button onclick="trimAudio()">Couper</button>
+
+  <h3>Résultat :</h3>
+  <audio id="trimmedPlayer" controls></audio>
+
+<script>
+let downloadedFile = null;
+
+async function downloadAudio() {
+  const url = document.getElementById("url").value;
+
+  const res = await fetch("/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+
+  const data = await res.json();
+  downloadedFile = data.file;
+
+  document.getElementById("player").src = data.file;
+}
+
+async function trimAudio() {
+  const start = Number(document.getElementById("start").value);
+  const end = Number(document.getElementById("end").value);
+
+  const res = await fetch("/trim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file: downloadedFile, start, end }),
+  });
+
+  const data = await res.json();
+  document.getElementById("trimmedPlayer").src = data.file;
+}
+</script>
+
+</body>
+</html>
+
