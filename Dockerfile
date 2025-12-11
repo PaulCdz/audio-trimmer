@@ -10,13 +10,9 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copier d’abord package.json pour permettre le cache Docker
 COPY package*.json ./
-
-# Installer les dépendances
 RUN npm install --quiet
 
-# Copier le reste du projet
 COPY . .
 
 EXPOSE 8080

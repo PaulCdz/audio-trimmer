@@ -1,0 +1,14 @@
+{
+  "name": "audio-trimmer",
+  "version": "1.0.0",
+  "description": "Simple YouTube audio downloader and trimmer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "fluent-ffmpeg": "^2.1.2"
+  }
+}
+
