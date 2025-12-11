@@ -223,15 +223,17 @@
           slider = sliderDiv;
 
           slider.noUiSlider.on("update", function(values) {
-            const start = Number(values[0]);
-            const end = Number(values[1]);
-
-            document.getElementById("start").value = start.toFixed(2);
-            document.getElementById("end").value = end.toFixed(2);
-
-            document.getElementById("sliderStartLabel").textContent = formatTime(start);
-            document.getElementById("sliderEndLabel").textContent = formatTime(end);
-          });
+          const start = Number(values[0]);
+          const end = Number(values[1]);
+        
+          // Inputs = arrondis ENTIERS (plus de décimales !)
+          document.getElementById("start").value = Math.round(start);
+          document.getElementById("end").value = Math.round(end);
+        
+          // Labels = format mm:ss
+          document.getElementById("sliderStartLabel").textContent = formatTime(start);
+          document.getElementById("sliderEndLabel").textContent = formatTime(end);
+        });
         } else {
           slider.noUiSlider.updateOptions({
             start: [0, audioDuration],
