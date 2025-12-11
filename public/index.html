@@ -1,60 +1,142 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Audio Trimmer YouTube</title>
+
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen text-gray-800">
 
-  <h2>Extraire l'audio YouTube</h2>
+  <!-- HEADER -->
+  <header class="bg-white shadow p-4 mb-10">
+    <h1 class="text-3xl font-bold text-center text-blue-600">
+      🎵 YouTube Audio Trimmer
+    </h1>
+    <p class="text-center text-gray-500 mt-1">Télécharger, écouter et couper facilement un extrait audio</p>
+  </header>
 
-  <input id="url" placeholder="Colle l'URL YouTube ici" size="50">
-  <button onclick="downloadAudio()">Analyser</button>
+  <!-- MAIN CONTENT -->
+  <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-8">
 
-  <h3>Audio téléchargé :</h3>
-  <audio id="player" controls></audio>
+    <!-- URL SECTION -->
+    <h2 class="text-xl font-semibold mb-4">1️⃣ Entrez l'URL YouTube</h2>
 
-  <h3>Trim</h3>
-  Début (sec) : <input id="start" type="number"><br><br>
-  Fin (sec) : <input id="end" type="number"><br><br>
-  <button onclick="trimAudio()">Couper</button>
+    <div class="flex gap-3">
+      <input id="url"
+        class="flex-1 p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+        placeholder="https://www.youtube.com/watch?v=..."
+      />
+      <button onclick="downloadAudio()"
+        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+        Analyser
+      </button>
+    </div>
 
-  <h3>Résultat :</h3>
-  <audio id="trimmedPlayer" controls></audio>
+    <!-- DOWNLOADED AUDIO PLAYER -->
+    <div class="mt-8 hidden" id="audioSection">
+      <h2 class="text-xl font-semibold mb-4">2️⃣ Audio téléchargé</h2>
 
-<script>
-let downloadedFile = null;
+      <audio id="player" controls class="w-full mb-6"></audio>
+    </div>
 
-async function downloadAudio() {
-  const url = document.getElementById("url").value;
+    <!-- TRIM SECTION -->
+    <div class="mt-8 hidden" id="trimSection">
+      <h2 class="text-xl font-semibold mb-4">3️⃣ Couper l'extrait</h2>
 
-  const res = await fetch("/download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-  });
+      <div class="grid grid-cols-2 gap-4">
 
-  const data = await res.json();
-  downloadedFile = data.file;
+        <div>
+          <label class="font-medium">Début (sec)</label>
+          <input id="start"
+            type="number"
+            min="0"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
 
-  document.getElementById("player").src = data.file;
-}
+        <div>
+          <label class="font-medium">Fin (sec)</label>
+          <input id="end"
+            type="number"
+            min="0"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
 
-async function trimAudio() {
-  const start = Number(document.getElementById("start").value);
-  const end = Number(document.getElementById("end").value);
+      </div>
 
-  const res = await fetch("/trim", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ file: downloadedFile, start, end }),
-  });
+      <button onclick="trimAudio()"
+        class="mt-6 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition w-full">
+        ✂️ Couper l'audio
+      </button>
 
-  const data = await res.json();
-  document.getElementById("trimmedPlayer").src = data.file;
-}
-</script>
+      <div class="mt-8 hidden" id="trimmedSection">
+        <h2 class="text-xl font-semibold mb-4">4️⃣ Résultat</h2>
+        <audio id="trimmedPlayer" controls class="w-full"></audio>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JS LOGIC -->
+  <script>
+    let downloadedFile = null;
+
+    async function downloadAudio() {
+      const url = document.getElementById("url").value;
+
+      const response = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+
+      if (!data.file) {
+        alert("Erreur lors du téléchargement");
+        return;
+      }
+
+      downloadedFile = data.file;
+      document.getElementById("player").src = data.file;
+
+      document.getElementById("audioSection").classList.remove("hidden");
+      document.getElementById("trimSection").classList.remove("hidden");
+    }
+
+    async function trimAudio() {
+      const start = Number(document.getElementById("start").value);
+      const end = Number(document.getElementById("end").value);
+
+      if (isNaN(start) || isNaN(end) || start >= end) {
+        alert("Les timecodes sont invalides.");
+        return;
+      }
+
+      const res = await fetch("/trim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: downloadedFile, start, end }),
+      });
+
+      const data = await res.json();
+
+      if (!data.file) {
+        alert("Erreur lors du trim");
+        return;
+      }
+
+      document.getElementById("trimmedPlayer").src = data.file;
+      document.getElementById("trimmedSection").classList.remove("hidden");
+    }
+  </script>
 
 </body>
 </html>
-
