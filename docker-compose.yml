@@ -3,12 +3,12 @@ version: "3.8"
 services:
   audio-trimmer:
     build:
-      context: /home/pi/audio-trimmer
+      context: /home/paul/audio-trimmer
       dockerfile: Dockerfile
     container_name: audio-trimmer
     ports:
       - "8080:8080"
     volumes:
-      - /home/pi/audio-trimmer/tmp:/app/tmp
+      - /home/paul/audio-trimmer/tmp:/app/tmp
     restart: unless-stopped
 
