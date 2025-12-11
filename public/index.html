@@ -4,44 +4,57 @@
   <meta charset="UTF-8" />
   <title>Audio Trimmer YouTube</title>
 
-  <!-- TailwindCSS CDN -->
+  <!-- TailwindCSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
   <!-- HEADER -->
   <header class="bg-white shadow p-4 mb-10">
-    <h1 class="text-3xl font-bold text-center text-blue-600">
+    <h1 class="text-3xl font-bold text-center text-indigo-600">
       🎵 YouTube Audio Trimmer
     </h1>
-    <p class="text-center text-gray-500 mt-1">Télécharger, écouter et couper facilement un extrait audio</p>
+    <p class="text-center text-gray-500 mt-1">Télécharger, écouter, couper et exporter facilement</p>
   </header>
 
-  <!-- MAIN CONTENT -->
   <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-8">
 
-    <!-- URL SECTION -->
+    <!-- URL INPUT -->
     <h2 class="text-xl font-semibold mb-4">1️⃣ Entrez l'URL YouTube</h2>
 
     <div class="flex gap-3">
       <input id="url"
-        class="flex-1 p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+        class="flex-1 p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none"
         placeholder="https://www.youtube.com/watch?v=..."
       />
       <button onclick="downloadAudio()"
-        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+        class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition">
         Analyser
       </button>
     </div>
 
-    <!-- DOWNLOADED AUDIO PLAYER -->
+    <!-- LOADER -->
+    <div id="loader" class="hidden mt-6 flex items-center gap-3 text-indigo-700">
+      <i class="fas fa-spinner spin text-3xl"></i>
+      <span class="text-lg font-medium">Analyse en cours…</span>
+    </div>
+
+    <!-- AUDIO DOWNLOADED -->
     <div class="mt-8 hidden" id="audioSection">
       <h2 class="text-xl font-semibold mb-4">2️⃣ Audio téléchargé</h2>
-
       <audio id="player" controls class="w-full mb-6"></audio>
     </div>
 
@@ -49,37 +62,65 @@
     <div class="mt-8 hidden" id="trimSection">
       <h2 class="text-xl font-semibold mb-4">3️⃣ Couper l'extrait</h2>
 
-      <div class="grid grid-cols-2 gap-4">
+      <!-- Timecode Tutorial -->
+      <details class="mb-4 bg-gray-50 p-4 rounded-lg cursor-pointer">
+        <summary class="font-semibold text-indigo-600 text-lg">ℹ️ Comment remplir les timecodes ?</summary>
+        <p class="mt-2 text-gray-700 leading-relaxed">
+          Les timecodes doivent être indiqués en <strong>secondes</strong>.
+          <br><br>
+          👉 Exemple : <br>
+          • <strong>Début = 30</strong> → commence à 00:30 <br>
+          • <strong>Fin = 75</strong> → s'arrête à 01:15 <br><br>
+          ✔️ Le temps de fin doit être <strong>supérieur</strong> au temps de début.<br>
+          ✔️ Vous pouvez écouter l’audio pour repérer le bon moment.
+        </p>
+      </details>
 
+      <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="font-medium">Début (sec)</label>
-          <input id="start"
-            type="number"
-            min="0"
-            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+          <input id="start" type="number" min="0"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
 
         <div>
           <label class="font-medium">Fin (sec)</label>
-          <input id="end"
-            type="number"
-            min="0"
-            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+          <input id="end" type="number" min="0"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
         </div>
+      </div>
 
+      <!-- Output filename -->
+      <div class="mt-6">
+        <label class="font-medium">Nom du fichier final</label>
+        <input id="titleInput" type="text" placeholder="ex: extrait-musique.mp3"
+          class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
       </div>
 
       <button onclick="trimAudio()"
         class="mt-6 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition w-full">
-        Couper l'audio
+        ✂️ Couper l'audio
       </button>
 
+      <!-- Trim loader -->
+      <div id="trimLoader" class="hidden mt-6 flex items-center gap-3 text-green-700">
+        <i class="fas fa-spinner spin text-3xl"></i>
+        <span class="text-lg font-medium">Découpage en cours…</span>
+      </div>
+
+      <!-- RESULT -->
       <div class="mt-8 hidden" id="trimmedSection">
         <h2 class="text-xl font-semibold mb-4">4️⃣ Résultat</h2>
-        <audio id="trimmedPlayer" controls class="w-full"></audio>
+
+        <audio id="trimmedPlayer" controls class="w-full mb-4"></audio>
+
+        <a id="downloadBtn"
+          class="block w-full text-center bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
+          download>
+          ⬇️ Télécharger l'extrait
+        </a>
       </div>
+
     </div>
 
   </div>
@@ -90,6 +131,9 @@
 
     async function downloadAudio() {
       const url = document.getElementById("url").value;
+      const loader = document.getElementById("loader");
+
+      loader.classList.remove("hidden");
 
       const response = await fetch("/download", {
         method: "POST",
@@ -99,8 +143,10 @@
 
       const data = await response.json();
 
+      loader.classList.add("hidden");
+
       if (!data.file) {
-        alert("Erreur lors du téléchargement");
+        alert("Erreur lors du téléchargement.");
         return;
       }
 
@@ -114,11 +160,15 @@
     async function trimAudio() {
       const start = Number(document.getElementById("start").value);
       const end = Number(document.getElementById("end").value);
+      const titleInput = document.getElementById("titleInput").value || "extrait.mp3";
 
       if (isNaN(start) || isNaN(end) || start >= end) {
-        alert("Les timecodes sont invalides.");
+        alert("Les timecodes sont invalides !");
         return;
       }
+
+      const trimLoader = document.getElementById("trimLoader");
+      trimLoader.classList.remove("hidden");
 
       const res = await fetch("/trim", {
         method: "POST",
@@ -127,13 +177,21 @@
       });
 
       const data = await res.json();
+      trimLoader.classList.add("hidden");
 
       if (!data.file) {
-        alert("Erreur lors du trim");
+        alert("Erreur lors du trim.");
         return;
       }
 
-      document.getElementById("trimmedPlayer").src = data.file;
+      const finalURL = data.file;
+
+      document.getElementById("trimmedPlayer").src = finalURL;
+
+      const DL = document.getElementById("downloadBtn");
+      DL.href = finalURL;
+      DL.download = titleInput;
+
       document.getElementById("trimmedSection").classList.remove("hidden");
     }
   </script>
