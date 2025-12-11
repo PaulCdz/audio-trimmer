@@ -64,17 +64,22 @@
 
       <!-- Timecode Tutorial -->
       <details class="mb-4 bg-gray-50 p-4 rounded-lg cursor-pointer">
-        <summary class="font-semibold text-indigo-600 text-lg">ℹ️ Comment remplir les timecodes ?</summary>
+        <summary class="font-semibold text-indigo-600 text-lg">
+          ℹ️ Comment remplir les timecodes ?
+        </summary>
         <p class="mt-2 text-gray-700 leading-relaxed">
-          Les timecodes doivent être indiqués en <strong>secondes</strong>.
-          <br><br>
-          👉 Exemple : <br>
-          • <strong>Début = 30</strong> → commence à 00:30 <br>
-          • <strong>Fin = 75</strong> → s'arrête à 01:15 <br><br>
-          ✔️ Le temps de fin doit être <strong>supérieur</strong> au temps de début.<br>
-          ✔️ Vous pouvez écouter l’audio pour repérer le bon moment.
+          Tu peux écrire les timecodes de plusieurs façons :<br><br>
+          👉 <strong>En secondes</strong> :<br>
+          • <code>45</code> → 45 secondes<br><br>
+          👉 <strong>Minutes : secondes</strong> :<br>
+          • <code>2:45</code> → 2 minutes 45<br>
+          • <code>2.45</code> → 2 minutes 45 (le point fonctionne comme les deux-points)<br><br>
+          👉 <strong>Heures : minutes : secondes</strong> (optionnel) :<br>
+          • <code>1:02:30</code> → 1h 2min 30s<br><br>
+          ⚠️ Le temps de fin doit être <strong>strictement supérieur</strong> au temps de début.
         </p>
       </details>
+
 
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -127,74 +132,115 @@
 
   <!-- JS LOGIC -->
   <script>
-    let downloadedFile = null;
+  let downloadedFile = null;
 
-    async function downloadAudio() {
-      const url = document.getElementById("url").value;
-      const loader = document.getElementById("loader");
+  // Convertit "45", "2:45", "2.45" (et même "1:02:30") en secondes
+  function parseTimecode(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return NaN;
 
-      loader.classList.remove("hidden");
+    // On traite ":" ou "." comme séparateurs (2:45 ou 2.45)
+    const hasSep = /[:.]/.test(s);
+    if (hasSep) {
+      const parts = s.split(/[:.]/).map(p => p.trim()).filter(Boolean);
 
-      const response = await fetch("/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-
-      const data = await response.json();
-
-      loader.classList.add("hidden");
-
-      if (!data.file) {
-        alert("Erreur lors du téléchargement.");
-        return;
+      if (parts.length === 2) {
+        // mm:ss
+        const m = parseInt(parts[0], 10);
+        const sec = parseInt(parts[1], 10);
+        if (isNaN(m) || isNaN(sec)) return NaN;
+        return m * 60 + sec;
+      } else if (parts.length === 3) {
+        // hh:mm:ss (au cas où)
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const sec = parseInt(parts[2], 10);
+        if (isNaN(h) || isNaN(m) || isNaN(sec)) return NaN;
+        return h * 3600 + m * 60 + sec;
       }
-
-      downloadedFile = data.file;
-      document.getElementById("player").src = data.file;
-
-      document.getElementById("audioSection").classList.remove("hidden");
-      document.getElementById("trimSection").classList.remove("hidden");
     }
 
-    async function trimAudio() {
-      const start = Number(document.getElementById("start").value);
-      const end = Number(document.getElementById("end").value);
-      const titleInput = document.getElementById("titleInput").value || "extrait.mp3";
+    // Sinon on considère que c'est juste des secondes ("45")
+    const seconds = Number(s.replace(",", "."));
+    if (isNaN(seconds)) return NaN;
+    return seconds;
+  }
 
-      if (isNaN(start) || isNaN(end) || start >= end) {
-        alert("Les timecodes sont invalides !");
-        return;
-      }
+  async function downloadAudio() {
+    const url = document.getElementById("url").value;
+    const loader = document.getElementById("loader");
 
-      const trimLoader = document.getElementById("trimLoader");
-      trimLoader.classList.remove("hidden");
+    loader.classList.remove("hidden");
 
-      const res = await fetch("/trim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file: downloadedFile, start, end }),
-      });
+    const response = await fetch("/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
 
-      const data = await res.json();
-      trimLoader.classList.add("hidden");
+    const data = await response.json();
 
-      if (!data.file) {
-        alert("Erreur lors du trim.");
-        return;
-      }
+    loader.classList.add("hidden");
 
-      const finalURL = data.file;
-
-      document.getElementById("trimmedPlayer").src = finalURL;
-
-      const DL = document.getElementById("downloadBtn");
-      DL.href = finalURL;
-      DL.download = titleInput;
-
-      document.getElementById("trimmedSection").classList.remove("hidden");
+    if (!data.file) {
+      alert("Erreur lors du téléchargement.");
+      return;
     }
-  </script>
+
+    downloadedFile = data.file;
+    document.getElementById("player").src = data.file;
+
+    document.getElementById("audioSection").classList.remove("hidden");
+    document.getElementById("trimSection").classList.remove("hidden");
+  }
+
+  async function trimAudio() {
+    const startRaw = document.getElementById("start").value;
+    const endRaw = document.getElementById("end").value;
+    const titleInput = document.getElementById("titleInput").value || "extrait.mp3";
+
+    const start = parseTimecode(startRaw);
+    const end = parseTimecode(endRaw);
+
+    if (isNaN(start) || isNaN(end) || start >= end) {
+      alert(
+        "Les timecodes sont invalides.\n\n" +
+        "Formats acceptés :\n" +
+        "- 45  (45 secondes)\n" +
+        "- 2:45 ou 2.45  (2 minutes 45)\n" +
+        "- 1:02:30 (1h 2min 30s)"
+      );
+      return;
+    }
+
+    const trimLoader = document.getElementById("trimLoader");
+    trimLoader.classList.remove("hidden");
+
+    const res = await fetch("/trim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: downloadedFile, start, end }),
+    });
+
+    const data = await res.json();
+    trimLoader.classList.add("hidden");
+
+    if (!data.file) {
+      alert("Erreur lors du trim.");
+      return;
+    }
+
+    const finalURL = data.file;
+
+    document.getElementById("trimmedPlayer").src = finalURL;
+
+    const DL = document.getElementById("downloadBtn");
+    DL.href = finalURL;
+    DL.download = titleInput;
+
+    document.getElementById("trimmedSection").classList.remove("hidden");
+  }
+</script>
 
 </body>
 </html>
