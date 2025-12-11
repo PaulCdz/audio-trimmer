@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-# Dépendances nécessaires pour Node + ffmpeg modules
+# Dépendances système
 RUN apk add --no-cache \
     python3 \
     make \
@@ -10,11 +10,13 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
+# Copier d’abord package.json pour permettre le cache Docker
 COPY package*.json ./
 
-# Installation avec fallback (npm ignore certaines erreurs)
-RUN npm install --omit=dev || true
+# Installer les dépendances
+RUN npm install --quiet
 
+# Copier le reste du projet
 COPY . .
 
 EXPOSE 8080
