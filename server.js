@@ -26,9 +26,11 @@ app.post("/download", async (req, res) => {
     const filename = `audio_${Date.now()}.webm`; // opus dans webm
     const outputPath = path.join(TMP_DIR, filename);
 
-    const audioStream = ytdl(url, {
-      quality: "140", // flux léger mais propre -> FAST
-      filter: "audioonly"
+    const { exec } = require("child_process");
+
+    exec(`yt-dlp -f 140 -o "${outputPath}" "${url}"`, (err) => {
+      if (err) return res.status(500).json({ error: "Download failed" });
+      res.json({ file: `/tmp/${filename}` });
     });
 
     const file = fs.createWriteStream(outputPath);
