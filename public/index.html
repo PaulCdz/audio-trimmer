@@ -10,6 +10,10 @@
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
+  <!-- noUiSlider -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+
   <style>
     .spin {
       animation: spin 1s linear infinite;
@@ -27,7 +31,9 @@
     <h1 class="text-3xl font-bold text-center text-indigo-600">
       🎵 YouTube Audio Trimmer
     </h1>
-    <p class="text-center text-gray-500 mt-1">Télécharger, écouter, couper et exporter facilement</p>
+    <p class="text-center text-gray-500 mt-1">
+      Télécharger, écouter, sélectionner et couper facilement un extrait audio
+    </p>
   </header>
 
   <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-8">
@@ -60,45 +66,54 @@
 
     <!-- TRIM SECTION -->
     <div class="mt-8 hidden" id="trimSection">
-      <h2 class="text-xl font-semibold mb-4">3️⃣ Couper l'extrait</h2>
+      <h2 class="text-xl font-semibold mb-4">3️⃣ Choisir l'extrait à couper</h2>
 
       <!-- Timecode Tutorial -->
       <details class="mb-4 bg-gray-50 p-4 rounded-lg cursor-pointer">
-        <summary class="font-semibold text-indigo-600 text-lg">
-          ℹ️ Comment remplir les timecodes ?
-        </summary>
+        <summary class="font-semibold text-indigo-600 text-lg">ℹ️ Comment remplir les timecodes ?</summary>
         <p class="mt-2 text-gray-700 leading-relaxed">
-          Tu peux écrire les timecodes de plusieurs façons :<br><br>
-          👉 <strong>En secondes</strong> :<br>
-          • <code>45</code> → 45 secondes<br><br>
-          👉 <strong>Minutes : secondes</strong> :<br>
-          • <code>2:45</code> → 2 minutes 45<br>
-          • <code>2.45</code> → 2 minutes 45 (le point fonctionne comme les deux-points)<br><br>
-          👉 <strong>Heures : minutes : secondes</strong> (optionnel) :<br>
-          • <code>1:02:30</code> → 1h 2min 30s<br><br>
-          ⚠️ Le temps de fin doit être <strong>strictement supérieur</strong> au temps de début.
+          Tu peux écrire les timecodes de plusieurs façons :
+          <br><br>
+          👉 <strong>En secondes</strong> : <code>45</code> → 45 secondes<br>
+          👉 <strong>Minutes:secondes</strong> : <code>2:45</code> → 2 min 45<br>
+          👉 <strong>Minutes.secondes</strong> : <code>2.45</code> → 2 min 45<br>
+          👉 <strong>Heures:minutes:secondes</strong> : <code>1:02:30</code><br><br>
+          ⚠️ La fin doit être <strong>supérieure</strong> au début.
         </p>
       </details>
 
+      <!-- Slider -->
+      <div class="mt-6">
+        <label class="font-medium mb-2 block">Sélectionner la zone</label>
+        <div id="trimSlider" class="mt-4"></div>
 
-      <div class="grid grid-cols-2 gap-4">
+        <div class="flex justify-between text-sm text-gray-600 mt-2">
+          <span id="sliderStartLabel">0s</span>
+          <span id="sliderEndLabel">0s</span>
+        </div>
+      </div>
+
+      <!-- Manual Inputs -->
+      <div class="grid grid-cols-2 gap-4 mt-6">
         <div>
-          <label class="font-medium">Début (sec)</label>
-          <input id="start" type="number" min="0"
-            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
+          <label class="font-medium">Début</label>
+          <input id="start" type="text"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="45 ou 2:45" />
         </div>
 
         <div>
-          <label class="font-medium">Fin (sec)</label>
-          <input id="end" type="number" min="0"
-            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
+          <label class="font-medium">Fin</label>
+          <input id="end" type="text"
+            class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="1:20" />
         </div>
       </div>
 
       <!-- Output filename -->
       <div class="mt-6">
         <label class="font-medium">Nom du fichier final</label>
-        <input id="titleInput" type="text" placeholder="ex: extrait-musique.mp3"
+        <input id="titleInput" type="text" placeholder="extrait.mp3"
           class="w-full p-3 mt-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none">
       </div>
 
@@ -125,122 +140,165 @@
           ⬇️ Télécharger l'extrait
         </a>
       </div>
-
     </div>
 
   </div>
 
-  <!-- JS LOGIC -->
+  <!-- SCRIPT -->
   <script>
-  let downloadedFile = null;
+    let downloadedFile = null;
+    let audioDuration = 0;
+    let slider;
 
-  // Convertit "45", "2:45", "2.45" (et même "1:02:30") en secondes
-  function parseTimecode(raw) {
-    const s = String(raw || "").trim();
-    if (!s) return NaN;
+    // Convert "45", "2:45", "2.45", "1:02:30" => secondes
+    function parseTimecode(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return NaN;
 
-    // On traite ":" ou "." comme séparateurs (2:45 ou 2.45)
-    const hasSep = /[:.]/.test(s);
-    if (hasSep) {
-      const parts = s.split(/[:.]/).map(p => p.trim()).filter(Boolean);
+      if (/[:.]/.test(s)) {
+        const parts = s.split(/[:.]/).map(p => p.trim());
 
-      if (parts.length === 2) {
-        // mm:ss
-        const m = parseInt(parts[0], 10);
-        const sec = parseInt(parts[1], 10);
-        if (isNaN(m) || isNaN(sec)) return NaN;
-        return m * 60 + sec;
-      } else if (parts.length === 3) {
-        // hh:mm:ss (au cas où)
-        const h = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        const sec = parseInt(parts[2], 10);
-        if (isNaN(h) || isNaN(m) || isNaN(sec)) return NaN;
-        return h * 3600 + m * 60 + sec;
+        if (parts.length === 2) {
+          const m = parseInt(parts[0]);
+          const sec = parseInt(parts[1]);
+          return m * 60 + sec;
+        }
+        if (parts.length === 3) {
+          const h = parseInt(parts[0]);
+          const m = parseInt(parts[1]);
+          const sec = parseInt(parts[2]);
+          return h * 3600 + m * 60 + sec;
+        }
       }
+
+      const seconds = Number(s.replace(",", "."));
+      return isNaN(seconds) ? NaN : seconds;
     }
 
-    // Sinon on considère que c'est juste des secondes ("45")
-    const seconds = Number(s.replace(",", "."));
-    if (isNaN(seconds)) return NaN;
-    return seconds;
-  }
+    function formatTime(sec) {
+      sec = Math.floor(sec);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${s.toString().padStart(2, "0")}`;
+    }
 
-  async function downloadAudio() {
-    const url = document.getElementById("url").value;
-    const loader = document.getElementById("loader");
+    async function downloadAudio() {
+      const url = document.getElementById("url").value;
+      const loader = document.getElementById("loader");
 
-    loader.classList.remove("hidden");
+      loader.classList.remove("hidden");
 
-    const response = await fetch("/download", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      const response = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+      loader.classList.add("hidden");
+
+      if (!data.file) {
+        alert("Erreur lors du téléchargement.");
+        return;
+      }
+
+      downloadedFile = data.file;
+
+      const player = document.getElementById("player");
+      player.src = data.file;
+
+      player.onloadedmetadata = () => {
+        audioDuration = player.duration;
+
+        if (!slider) {
+          const sliderDiv = document.getElementById("trimSlider");
+
+          noUiSlider.create(sliderDiv, {
+            start: [0, audioDuration],
+            connect: true,
+            range: { min: 0, max: audioDuration },
+            step: 0.1
+          });
+
+          slider = sliderDiv;
+
+          slider.noUiSlider.on("update", function(values) {
+            const start = Number(values[0]);
+            const end = Number(values[1]);
+
+            document.getElementById("start").value = start.toFixed(2);
+            document.getElementById("end").value = end.toFixed(2);
+
+            document.getElementById("sliderStartLabel").textContent = formatTime(start);
+            document.getElementById("sliderEndLabel").textContent = formatTime(end);
+          });
+        } else {
+          slider.noUiSlider.updateOptions({
+            start: [0, audioDuration],
+            range: { min: 0, max: audioDuration }
+          });
+        }
+      };
+
+      document.getElementById("audioSection").classList.remove("hidden");
+      document.getElementById("trimSection").classList.remove("hidden");
+    }
+
+    async function trimAudio() {
+      const start = parseTimecode(document.getElementById("start").value);
+      const end = parseTimecode(document.getElementById("end").value);
+      const titleInput = document.getElementById("titleInput").value || "extrait.mp3";
+
+      if (isNaN(start) || isNaN(end) || start >= end) {
+        alert("Timecode invalide !");
+        return;
+      }
+
+      const trimLoader = document.getElementById("trimLoader");
+      trimLoader.classList.remove("hidden");
+
+      const res = await fetch("/trim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: downloadedFile, start, end }),
+      });
+
+      const data = await res.json();
+      trimLoader.classList.add("hidden");
+
+      if (!data.file) {
+        alert("Erreur lors du découpage.");
+        return;
+      }
+
+      document.getElementById("trimmedPlayer").src = data.file;
+
+      const DL = document.getElementById("downloadBtn");
+      DL.href = data.file;
+      DL.download = titleInput;
+
+      document.getElementById("trimmedSection").classList.remove("hidden");
+    }
+
+    // Synchronisation inverse : typing -> slider
+    document.getElementById("start").addEventListener("input", () => {
+      const start = parseTimecode(document.getElementById("start").value);
+      const end = parseTimecode(document.getElementById("end").value);
+      if (!slider) return;
+      if (!isNaN(start) && !isNaN(end) && start < end) {
+        slider.noUiSlider.set([start, end]);
+      }
     });
 
-    const data = await response.json();
-
-    loader.classList.add("hidden");
-
-    if (!data.file) {
-      alert("Erreur lors du téléchargement.");
-      return;
-    }
-
-    downloadedFile = data.file;
-    document.getElementById("player").src = data.file;
-
-    document.getElementById("audioSection").classList.remove("hidden");
-    document.getElementById("trimSection").classList.remove("hidden");
-  }
-
-  async function trimAudio() {
-    const startRaw = document.getElementById("start").value;
-    const endRaw = document.getElementById("end").value;
-    const titleInput = document.getElementById("titleInput").value || "extrait.mp3";
-
-    const start = parseTimecode(startRaw);
-    const end = parseTimecode(endRaw);
-
-    if (isNaN(start) || isNaN(end) || start >= end) {
-      alert(
-        "Les timecodes sont invalides.\n\n" +
-        "Formats acceptés :\n" +
-        "- 45  (45 secondes)\n" +
-        "- 2:45 ou 2.45  (2 minutes 45)\n" +
-        "- 1:02:30 (1h 2min 30s)"
-      );
-      return;
-    }
-
-    const trimLoader = document.getElementById("trimLoader");
-    trimLoader.classList.remove("hidden");
-
-    const res = await fetch("/trim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: downloadedFile, start, end }),
+    document.getElementById("end").addEventListener("input", () => {
+      const start = parseTimecode(document.getElementById("start").value);
+      const end = parseTimecode(document.getElementById("end").value);
+      if (!slider) return;
+      if (!isNaN(start) && !isNaN(end) && start < end) {
+        slider.noUiSlider.set([start, end]);
+      }
     });
-
-    const data = await res.json();
-    trimLoader.classList.add("hidden");
-
-    if (!data.file) {
-      alert("Erreur lors du trim.");
-      return;
-    }
-
-    const finalURL = data.file;
-
-    document.getElementById("trimmedPlayer").src = finalURL;
-
-    const DL = document.getElementById("downloadBtn");
-    DL.href = finalURL;
-    DL.download = titleInput;
-
-    document.getElementById("trimmedSection").classList.remove("hidden");
-  }
-</script>
+  </script>
 
 </body>
 </html>
