@@ -2,88 +2,72 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const ytdl = require("ytdl-core");
 const ffmpeg = require("fluent-ffmpeg");
+const { exec } = require("child_process");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-const TMP_DIR = "/dev/shm/audio-trimmer"; // stocke en RAM → ultra rapide
-
+// Stockage rapide en RAM
+const TMP_DIR = "/dev/shm/audio-trimmer";
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 app.use("/tmp", express.static(TMP_DIR));
 
 
-// -----------------------------------------
-// 1️⃣ Téléchargement optimisé
-// -----------------------------------------
+// ---------------------
+//  1️⃣ DOWNLOAD (yt-dlp)
+// ---------------------
 app.post("/download", async (req, res) => {
-  try {
-    const { url } = req.body;
+  const { url } = req.body;
 
-    const filename = `audio_${Date.now()}.webm`; // opus dans webm
-    const outputPath = path.join(TMP_DIR, filename);
+  const filename = `audio_${Date.now()}.webm`;
+  const outputPath = path.join(TMP_DIR, filename);
 
-    const { exec } = require("child_process");
+  // yt-dlp 140 = audio-only medium (très rapide)
+  const command = `yt-dlp -f 140 -o "${outputPath}" "${url}"`;
 
-    exec(`yt-dlp -f 140 -o "${outputPath}" "${url}"`, (err) => {
-      if (err) return res.status(500).json({ error: "Download failed" });
-      res.json({ file: `/tmp/${filename}` });
-    });
-
-    const file = fs.createWriteStream(outputPath);
-    audioStream.pipe(file);
-
-    file.on("finish", () => {
-      res.json({ file: `/tmp/${filename}` });
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Download failed" });
-  }
+  exec(command, (err) => {
+    if (err) {
+      console.error("yt-dlp error:", err);
+      return res.status(500).json({ error: "Download failed" });
+    }
+    res.json({ file: `/tmp/${filename}` });
+  });
 });
 
 
-// -----------------------------------------
-// 2️⃣ Trim ultra rapide (copy si possible, sinon MP3 128k)
-// -----------------------------------------
-app.post("/trim", async (req, res) => {
-  try {
-    const { file, start, end } = req.body;
-    const inputPath = path.join(TMP_DIR, path.basename(file));
-    const outputFilename = `trim_${Date.now()}.mp3`;
-    const outputPath = path.join(TMP_DIR, outputFilename);
+// ---------------------
+//  2️⃣ TRIM (ffmpeg)
+// ---------------------
+app.post("/trim", (req, res) => {
+  const { file, start, end } = req.body;
 
-    const duration = end - start;
+  const inputPath = path.join(TMP_DIR, path.basename(file));
+  const outputFilename = `trim_${Date.now()}.mp3`;
+  const outputPath = path.join(TMP_DIR, outputFilename);
 
-    // YouTube = souvent opus → mp3 obligatoire
-    ffmpeg(inputPath)
-      .setStartTime(start)
-      .setDuration(duration)
-      .audioBitrate("128k")        // optimise qualité/poids/vitesse
-      .audioCodec("libmp3lame")
-      .format("mp3")
-      .on("end", () => res.json({ file: `/tmp/${outputFilename}` }))
-      .on("error", e => {
-        console.error(e);
-        res.status(500).json({ error: "Trim failed" });
-      })
-      .save(outputPath);
+  const duration = end - start;
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Trim failed" });
-  }
+  ffmpeg(inputPath)
+    .setStartTime(start)
+    .setDuration(duration)
+    .audioCodec("libmp3lame")
+    .audioBitrate("128k")
+    .format("mp3")
+    .on("end", () => res.json({ file: `/tmp/${outputFilename}` }))
+    .on("error", (err) => {
+      console.error(err);
+      res.status(500).json({ error: "Trim failed" });
+    })
+    .save(outputPath);
 });
 
 
+// Serve frontend
 app.use("/", express.static("public"));
 
-// Server
-const PORT = 8080;
-app.listen(PORT, () =>
-  console.log(`Optimized Server running on port ${PORT}`)
+app.listen(8080, () =>
+  console.log("🔥 yt-dlp Optimized Server running on port 8080")
 );
