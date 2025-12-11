@@ -1,52 +1,87 @@
 const express = require("express");
-const { exec } = require("child_process");
-const ffmpeg = require("fluent-ffmpeg");
-const path = require("path");
+const cors = require("cors");
 const fs = require("fs");
+const path = require("path");
+const ytdl = require("ytdl-core");
+const ffmpeg = require("fluent-ffmpeg");
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(cors());
 
-const TMP_DIR = path.join(__dirname, "tmp");
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
+const TMP_DIR = "/dev/shm/audio-trimmer"; // stocke en RAM → ultra rapide
 
-// Télécharger l'audio YouTube
-app.post("/download", (req, res) => {
-  const url = req.body.url;
-  const filename = `audio_${Date.now()}.mp3`;
-  const output = path.join(TMP_DIR, filename);
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  const cmd = `yt-dlp -f bestaudio -x --audio-format mp3 -o "${output}" "${url}"`;
+app.use("/tmp", express.static(TMP_DIR));
 
-  exec(cmd, (error) => {
-    if (error) return res.status(500).json({ error: "Download failed" });
 
-    res.json({ file: "/audio/" + filename });
-  });
+// -----------------------------------------
+// 1️⃣ Téléchargement optimisé
+// -----------------------------------------
+app.post("/download", async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    const filename = `audio_${Date.now()}.webm`; // opus dans webm
+    const outputPath = path.join(TMP_DIR, filename);
+
+    const audioStream = ytdl(url, {
+      quality: "140", // flux léger mais propre -> FAST
+      filter: "audioonly"
+    });
+
+    const file = fs.createWriteStream(outputPath);
+    audioStream.pipe(file);
+
+    file.on("finish", () => {
+      res.json({ file: `/tmp/${filename}` });
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Download failed" });
+  }
 });
 
-// Trim audio
-app.post("/trim", (req, res) => {
-  const { file, start, end } = req.body;
-  const inputPath = path.join(TMP_DIR, path.basename(file));
-  const filename = `trim_${Date.now()}.mp3`;
-  const outputPath = path.join(TMP_DIR, filename);
 
-  ffmpeg(inputPath)
-    .setStartTime(start)
-    .setDuration(end - start)
-    .output(outputPath)
-    .on("end", () => res.json({ file: "/audio/" + filename }))
-    .on("error", () => res.status(500).json({ error: "Trim failed" }))
-    .run();
+// -----------------------------------------
+// 2️⃣ Trim ultra rapide (copy si possible, sinon MP3 128k)
+// -----------------------------------------
+app.post("/trim", async (req, res) => {
+  try {
+    const { file, start, end } = req.body;
+    const inputPath = path.join(TMP_DIR, path.basename(file));
+    const outputFilename = `trim_${Date.now()}.mp3`;
+    const outputPath = path.join(TMP_DIR, outputFilename);
+
+    const duration = end - start;
+
+    // YouTube = souvent opus → mp3 obligatoire
+    ffmpeg(inputPath)
+      .setStartTime(start)
+      .setDuration(duration)
+      .audioBitrate("128k")        // optimise qualité/poids/vitesse
+      .audioCodec("libmp3lame")
+      .format("mp3")
+      .on("end", () => res.json({ file: `/tmp/${outputFilename}` }))
+      .on("error", e => {
+        console.error(e);
+        res.status(500).json({ error: "Trim failed" });
+      })
+      .save(outputPath);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Trim failed" });
+  }
 });
 
-// Servir les fichiers audio
-app.get("/audio/:filename", (req, res) => {
-  const filePath = path.join(TMP_DIR, req.params.filename);
-  res.sendFile(filePath);
-});
 
-app.listen(8080, () => console.log("Server running on port 8080"));
+app.use("/", express.static("public"));
+
+// Server
+const PORT = 8080;
+app.listen(PORT, () =>
+  console.log(`Optimized Server running on port ${PORT}`)
+);
